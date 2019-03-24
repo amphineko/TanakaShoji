@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<configuration>
+  <appSettings>
+    <add key="IsBot" value="yes" />
+    <add key="Token" value="YOUR_TOKEN_HERE" />
+    <add key="TokenType" value="Bot" />
+  </appSettings>
+</configuration>
