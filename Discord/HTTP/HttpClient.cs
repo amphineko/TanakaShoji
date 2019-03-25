@@ -4,8 +4,8 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Runtime.Serialization.Json;
 using System.Threading.Tasks;
-using TanakaShoji.Discord.Models;
-using TanakaShoji.Discord.Models.Gateway;
+using TanakaShoji.Discord.Contracts;
+using TanakaShoji.Discord.Contracts.Resources.Users;
 
 namespace TanakaShoji.Discord.HTTP
 {

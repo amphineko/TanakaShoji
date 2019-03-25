@@ -1,8 +1,8 @@
 ﻿using System.Runtime.Serialization;
 
-namespace TanakaShoji.Discord.Models.Gateway
+namespace TanakaShoji.Discord.Contracts
 {
-    public class SessionStartLimit
+    public class GatewaySessionStartLimit
     {
         [DataMember(Name = "reset_after", IsRequired = true)]
         public int Expire;

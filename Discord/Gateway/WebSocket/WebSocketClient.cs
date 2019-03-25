@@ -5,22 +5,21 @@ using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 using NLog;
-using TanakaShoji.Discord.Models.Gateway;
 
 namespace TanakaShoji.Discord.Gateway.WebSocket
 {
     public class WebSocketClient
     {
-        public const int ReceiveBufferSize = 1024 * 8;
+        private const int ReceiveBufferSize = 1024 * 8;
+        private const int SendBufferSize = 1024 * 4;
 
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
+        private readonly Task _connectTask;
 
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly ClientWebSocket _socket;
         private readonly ObjectPool<MemoryStream> _streamPool;
-        private readonly Task _connectTask;
 
         public WebSocketClient(ClientWebSocket socket)
         {
@@ -40,6 +39,8 @@ namespace TanakaShoji.Discord.Gateway.WebSocket
             _connectTask = _socket.ConnectAsync(endpoint, _cts.Token);
             _connectTask.GetAwaiter().OnCompleted(() => Logger.Debug($@"Connected to {endpoint}"));
         }
+
+        public event WebSocketMessageHandler OnMessage;
 
         private async Task<(MemoryStream, WebSocketReceiveResult)> ReceiveMessageStreamAsync(
             CancellationToken cancellationToken)
@@ -67,41 +68,15 @@ namespace TanakaShoji.Discord.Gateway.WebSocket
             return (outputStream, message);
         }
 
-        private async Task ReceiveMessageAsync(CancellationToken cancellationToken)
+        public async Task SendMessageStreamAsync(MemoryStream stream, WebSocketMessageType type,
+            CancellationToken cancellationToken)
         {
-            var (stream, result) = await ReceiveMessageStreamAsync(cancellationToken);
-            using (stream)
+            var buffer = stream.GetBuffer();
+            for (var offset = 0; offset < stream.Length; offset += SendBufferSize)
             {
-                switch (result.MessageType)
-                {
-                    case WebSocketMessageType.Text:
-                        ParseTextMessage(stream);
-                        break;
-                    default:
-                        throw new NotImplementedException();
-                }
-            }
-        }
-
-        private void ParseTextMessage(MemoryStream stream)
-        {
-            using (var reader = new StreamReader(stream))
-            {
-                stream.Position = 0;
-                var baseMessage = new JsonSerializer().Deserialize<BaseGatewayMessage>(reader);
-
-                switch (baseMessage.OpCode)
-                {
-                    case GatewayEventOpCode.Hello:
-                        stream.Position = 0;
-                        var hello = new JsonSerializer().Deserialize<GatewayEvent<GatewayEventHelloPayload>>(reader);
-                        foreach (var server in hello.Payload.ConnectedServers)
-                            Logger.Debug($"Connected to Gateway server {server}");
-                        Logger.Info($"Set Heartbeat interval to {hello.Payload.Heartbeat}");
-                        break;
-                    default:
-                        throw new NotImplementedException();
-                }
+                var segment = new ReadOnlyMemory<byte>(buffer, offset,
+                    (int) Math.Min(stream.Length - offset, SendBufferSize));
+                await _socket.SendAsync(segment, type, offset + SendBufferSize >= stream.Length, cancellationToken);
             }
         }
 
@@ -110,7 +85,10 @@ namespace TanakaShoji.Discord.Gateway.WebSocket
             _connectTask.GetAwaiter().GetResult();
 
             while (!cancellationToken.IsCancellationRequested)
-                ReceiveMessageAsync(cancellationToken).GetAwaiter().GetResult();
+            {
+                var (stream, result) = ReceiveMessageStreamAsync(cancellationToken).GetAwaiter().GetResult();
+                OnMessage?.Invoke(stream, result.MessageType);
+            }
 
             while (!_streamPool.IsEmpty)
                 _streamPool.Get().Dispose();

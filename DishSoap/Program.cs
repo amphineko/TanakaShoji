@@ -25,14 +25,17 @@ namespace DishSoap
             logger.Info($"Assigned Gateway WebSocket: {gatewayEndpoint.Url}");
             if (Configuration.IsBot)
                 logger.Info(
-                    $"Gateway Quota: {gatewayEndpoint.SessionStartLimit.Remaining}/{gatewayEndpoint.SessionStartLimit.Total}, " +
-                    $"reset after {gatewayEndpoint.SessionStartLimit.Expire}ms");
+                    $"Gateway Quota: {gatewayEndpoint.GatewaySessionStartLimit.Remaining}/{gatewayEndpoint.GatewaySessionStartLimit.Total}, " +
+                    $"reset after {gatewayEndpoint.GatewaySessionStartLimit.Expire}ms");
 
             var wsEndpoint = await client.GetGateway();
             Console.WriteLine($"Connecting to Gateway endpoint {wsEndpoint}");
             var gateway = new GatewayClient(wsEndpoint.Url, Configuration.TokenType, Configuration.Token);
+            gateway.Start();
 
             Thread.Sleep(Timeout.Infinite);
+
+            gateway.Stop();
         }
     }
 }
